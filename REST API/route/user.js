@@ -7,6 +7,7 @@ const {
   inscrireTournoi,
   verifierInscription,
   verifierConflitTournoi,
+  loginUser,
 } = require("../controller/user");
 const router = express.Router();
 
@@ -21,4 +22,7 @@ router
 router
   .route("/user/:userId/tournoi/:tournoiId/conflit")
   .get(verifierConflitTournoi);
+
+router.route("/login").post(loginUser);
+
 module.exports = router;

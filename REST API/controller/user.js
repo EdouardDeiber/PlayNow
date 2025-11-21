@@ -231,6 +231,29 @@ const verifierConflitTournoi = async (req, res) => {
   }
 };
 
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Cherche l'utilisateur par email
+    const user = await db().collection("user").findOne({ email });
+    if (!user) return res.status(400).json({ message: "Email incorrect" });
+
+    // Vérifie le mot de passe en clair
+    if (user.password !== password)
+      return res.status(400).json({ message: "Mot de passe incorrect" });
+
+    res.status(200).json({
+      message: "Connexion réussie",
+      userId: user._id,
+      email: user.email,
+    });
+  } catch (error) {
+    console.error("Erreur loginUser :", error);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
 module.exports = {
   ajouterUser,
   getUsers,
@@ -239,4 +262,5 @@ module.exports = {
   inscrireTournoi,
   verifierInscription,
   verifierConflitTournoi,
+  loginUser,
 };

@@ -1,30 +1,69 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 
 export default function LoginScreen() {
   const router = useRouter();
 
-  const handleLogin = () => {
-    // Ici tu peux faire la vérification avec ton API
-    // Puis naviguer vers la page home
-    router.push("/home");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  //
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Erreur", "Veuillez saisir email et mot de passe.");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://10.29.251.176:3000/api/v1/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("Erreur", data.message || "Connexion échouée");
+        return;
+      }
+
+      // Connexion réussie → navigation vers Home
+      Alert.alert("Succès", "Connexion réussie !");
+      router.push("/home");
+    } catch (error) {
+      console.error("Erreur API :", error);
+      Alert.alert("Erreur", "Impossible de se connecter au serveur");
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>PlayNow!</Text>
 
-      <TextInput placeholder="Email" style={styles.input} />
+      <TextInput
+        placeholder="Email"
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+
       <TextInput
         placeholder="Mot de passe"
         style={styles.input}
+        value={password}
+        onChangeText={setPassword}
         secureTextEntry
       />
 
