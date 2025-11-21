@@ -14,7 +14,7 @@ router.route("/user").post(ajouterUser);
 router.route("/user").get(getUsers);
 router.route("/user/:id").get(getUser);
 router.route("/user/:id").put(modifierUser);
-router.route("/user/tournoi/:id").patch(inscrireTournoi);
+router.route("/user/tournoi/:id/:tournois_id").patch(inscrireTournoi);
 router
   .route("/user/:userId/tournoi/:tournoiId/inscription")
   .get(verifierInscription);

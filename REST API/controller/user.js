@@ -87,28 +87,69 @@ const modifierUser = async (req, res) => {
 
 const inscrireTournoi = async (req, res) => {
   try {
-    // Id de l'utilisateur cible
-    let userId = new ObjectId(req.params.id);
+    const userId = new ObjectId(req.params.id);
+    const tournoiId = new ObjectId(req.params.tournois_id);
 
-    // Id de l'ami à ajouter (dans le corps de la requête)
-    let tournoiId = new ObjectId(req.body.tournois_id);
+    // 1️ Vérifie que l'utilisateur existe
+    const user = await db().collection("user").findOne({ _id: userId });
+    if (!user) return res.status(404).json({ msg: "Utilisateur non trouvé" });
 
-    // Ajouter dans le tableau "tournoi" sans doublon
-    let result = await db()
-      .collection("user")
-      .updateOne(
-        { _id: userId },
-        { $addToSet: { tournois_id: tournoiId } } // $push pour autoriser doublons
-      );
+    // 2️ Vérifie s'il est déjà inscrit à ce tournoi
+    const dejaInscrit = (user.tournois_id || []).some((id) =>
+      id.equals(tournoiId)
+    );
 
-    if (result.modifiedCount > 0) {
-      res.status(200).json({ msg: "Tournoi ajouté avec succès" });
-    } else {
-      res.status(404).json({ msg: "User non trouvé ou tournoi déjà présent" });
+    if (dejaInscrit) {
+      return res.status(400).json({ msg: "Utilisateur déjà inscrit" });
     }
+
+    // 3️ Récupère le tournoi
+    const tournoi = await db()
+      .collection("tournoi")
+      .findOne({ _id: tournoiId });
+    if (!tournoi) return res.status(404).json({ msg: "Tournoi non trouvé" });
+
+    // 4️ Vérifie conflit de date
+    const conflit = await db()
+      .collection("tournoi")
+      .findOne({
+        _id: { $in: user.tournois_id || [] },
+        date: tournoi.date,
+        _id: { $ne: tournoi._id },
+      });
+
+    if (conflit) {
+      return res
+        .status(400)
+        .json({ msg: "Conflit de date avec un autre tournoi" });
+    }
+
+    // 5️ Nouvelle logique "placeTournoi" → disponibilité par users_id & nbrParticipant
+    const nbInscrits = Array.isArray(tournoi.users_id)
+      ? tournoi.users_id.length
+      : 0;
+
+    const capacité = tournoi.nbrParticipant ?? 0;
+    const isAvailable = nbInscrits < capacité;
+
+    if (!isAvailable) {
+      return res.status(400).json({ msg: "Tournoi complet" });
+    }
+
+    // 6️ Ajoute l'utilisateur au tableau `user.tournois_id`
+    await db()
+      .collection("user")
+      .updateOne({ _id: userId }, { $addToSet: { tournois_id: tournoiId } });
+
+    // 7️ Ajoute également l’utilisateur dans tournoi.users_id (optionnel mais logique)
+    await db()
+      .collection("tournoi")
+      .updateOne({ _id: tournoiId }, { $addToSet: { users_id: userId } });
+
+    res.status(200).json({ msg: "Tournoi ajouté avec succès" });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: error.message });
+    console.error("Erreur dans inscrireTournoi :", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
