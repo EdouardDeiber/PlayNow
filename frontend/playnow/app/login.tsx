@@ -6,16 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  //
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -24,11 +24,14 @@ export default function LoginScreen() {
     }
 
     try {
-      const response = await fetch("http://10.29.251.176:3000/api/v1/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        /*"http://10.29.251.176:3000/api/v1/login"*/ "http://localhost:3000/api/v1/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
 
       const data = await response.json();
 
@@ -37,9 +40,16 @@ export default function LoginScreen() {
         return;
       }
 
-      // Connexion réussie → navigation vers Home
-      Alert.alert("Succès", "Connexion réussie !");
-      router.push("/home");
+      // Stocker le token et le rôle
+      await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("role", data.role);
+
+      // Connexion réussie → navigation en fonction du rôle
+      if (data.role === "admin") {
+        router.replace("/admin/home"); // page admin
+      } else {
+        router.replace("/user/home"); // page user
+      }
     } catch (error) {
       console.error("Erreur API :", error);
       Alert.alert("Erreur", "Impossible de se connecter au serveur");
@@ -77,24 +87,42 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#2cae4b", // vert comme l'image
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
-  title: { fontSize: 36, fontWeight: "bold", marginBottom: 40 },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    marginBottom: 30,
+    color: "#fff",
+    textAlign: "center",
+  },
+  trophy: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+  },
   input: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: "#d1f0c5", // input vert clair
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 15,
+    fontSize: 16,
   },
   button: {
-    backgroundColor: "#007bff",
-    paddingVertical: 12,
-    borderRadius: 10,
+    width: "100%",
+    backgroundColor: "#000000", // bouton noir
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
+    marginTop: 10,
   },
-  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 18 },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 18,
+  },
 });

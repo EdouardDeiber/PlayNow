@@ -1,4 +1,6 @@
 const express = require("express");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 const {
   ajouterUser,
   getUsers,
@@ -8,14 +10,16 @@ const {
   verifierInscription,
   verifierConflitTournoi,
   loginUser,
+  getUserTournaments,
 } = require("../controller/user");
 const router = express.Router();
 
-router.route("/user").post(ajouterUser);
-router.route("/user").get(getUsers);
-router.route("/user/:id").get(getUser);
-router.route("/user/:id").put(modifierUser);
-router.route("/user/tournoi/:id/:tournois_id").patch(inscrireTournoi);
+router.route("/user").post(ajouterUser, auth, admin);
+router.route("/user").get(getUsers, auth, admin);
+router.route("/user/:id").get(getUser, auth);
+router.route("/user/:id").put(modifierUser, auth);
+router.route("/user/:id/tournoi/:tournois_id").patch(inscrireTournoi, auth);
+router.route("/user/:id/tournois").get(auth, getUserTournaments);
 router
   .route("/user/:userId/tournoi/:tournoiId/inscription")
   .get(verifierInscription);

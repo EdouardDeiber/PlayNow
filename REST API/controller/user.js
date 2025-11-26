@@ -1,6 +1,7 @@
 const { User } = require("../model/user");
-const { db } = require("../bd/connect"); // on utilise db() directement
+const { db } = require("../bd/connect");
 const { ObjectId } = require("mongodb");
+const jwt = require("jsonwebtoken");
 
 const ajouterUser = async (req, res) => {
   try {
@@ -13,7 +14,9 @@ const ajouterUser = async (req, res) => {
       req.body.prenom,
       req.body.email,
       req.body.telephone,
-      req.body.tournois_id
+      req.body.tournois_id,
+      req.body.role,
+      req.body.password
     );
 
     // Insertion dans MongoDB
@@ -90,66 +93,73 @@ const inscrireTournoi = async (req, res) => {
     const userId = new ObjectId(req.params.id);
     const tournoiId = new ObjectId(req.params.tournois_id);
 
-    // 1️ Vérifie que l'utilisateur existe
+    // 1. Vérifie que l'utilisateur existe
     const user = await db().collection("user").findOne({ _id: userId });
     if (!user) return res.status(404).json({ msg: "Utilisateur non trouvé" });
 
-    // 2️ Vérifie s'il est déjà inscrit à ce tournoi
-    const dejaInscrit = (user.tournois_id || []).some((id) =>
-      id.equals(tournoiId)
-    );
-
+    // 2. Vérifie si déjà inscrit (sécurisé pour tournois_id null)
+    const userTournois = Array.isArray(user.tournois_id)
+      ? user.tournois_id
+      : [];
+    const dejaInscrit = userTournois.some((id) => id.equals(tournoiId));
     if (dejaInscrit) {
       return res.status(400).json({ msg: "Utilisateur déjà inscrit" });
     }
 
-    // 3️ Récupère le tournoi
+    // 3. Récupère le tournoi
     const tournoi = await db()
       .collection("tournoi")
       .findOne({ _id: tournoiId });
     if (!tournoi) return res.status(404).json({ msg: "Tournoi non trouvé" });
 
-    // 4️ Vérifie conflit de date
+    // 4. Vérifie conflit de date (sécurisé si user.tournois_id null)
     const conflit = await db()
       .collection("tournoi")
       .findOne({
-        _id: { $in: user.tournois_id || [] },
+        _id: { $in: userTournois },
         date: tournoi.date,
         _id: { $ne: tournoi._id },
       });
-
     if (conflit) {
       return res
         .status(400)
         .json({ msg: "Conflit de date avec un autre tournoi" });
     }
 
-    // 5️ Nouvelle logique "placeTournoi" → disponibilité par users_id & nbrParticipant
+    // 5. Vérifie la disponibilité
     const nbInscrits = Array.isArray(tournoi.users_id)
       ? tournoi.users_id.length
       : 0;
-
-    const capacité = tournoi.nbrParticipant ?? 0;
-    const isAvailable = nbInscrits < capacité;
-
-    if (!isAvailable) {
+    const capacite = tournoi.nbrParticipant ?? 0;
+    if (nbInscrits >= capacite) {
       return res.status(400).json({ msg: "Tournoi complet" });
     }
 
-    // 6️ Ajoute l'utilisateur au tableau `user.tournois_id`
+    // 6. S'assurer que fields users_id et user.tournois_id sont des tableaux (si null)
+    if (!Array.isArray(tournoi.users_id)) {
+      await db()
+        .collection("tournoi")
+        .updateOne({ _id: tournoiId }, { $set: { users_id: [] } });
+    }
+    if (!Array.isArray(user.tournois_id)) {
+      await db()
+        .collection("user")
+        .updateOne({ _id: userId }, { $set: { tournois_id: [] } });
+    }
+
+    // 7. Ajoute l'utilisateur aux deux tableaux (idempotent grâce à $addToSet)
     await db()
       .collection("user")
       .updateOne({ _id: userId }, { $addToSet: { tournois_id: tournoiId } });
 
-    // 7️ Ajoute également l’utilisateur dans tournoi.users_id (optionnel mais logique)
     await db()
       .collection("tournoi")
       .updateOne({ _id: tournoiId }, { $addToSet: { users_id: userId } });
 
-    res.status(200).json({ msg: "Tournoi ajouté avec succès" });
+    return res.status(200).json({ msg: "Tournoi ajouté avec succès" });
   } catch (error) {
     console.error("Erreur dans inscrireTournoi :", error);
-    res.status(500).json({ error: "Erreur serveur" });
+    return res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
@@ -235,21 +245,57 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Cherche l'utilisateur par email
     const user = await db().collection("user").findOne({ email });
     if (!user) return res.status(400).json({ message: "Email incorrect" });
 
-    // Vérifie le mot de passe en clair
     if (user.password !== password)
       return res.status(400).json({ message: "Mot de passe incorrect" });
 
+    // Générer un token
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+      },
+      "SECRET_KEY_À_CHANGER", // clé secrète
+      { expiresIn: "7d" }
+    );
+
     res.status(200).json({
       message: "Connexion réussie",
+      token,
       userId: user._id,
       email: user.email,
+      role: user.role,
     });
   } catch (error) {
     console.error("Erreur loginUser :", error);
+    res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+const getUserTournaments = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (!ObjectId.isValid(userId))
+      return res.status(400).json({ message: "ID utilisateur invalide" });
+
+    const user = await db()
+      .collection("user")
+      .findOne({ _id: new ObjectId(userId) });
+
+    if (!user)
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
+
+    const tournois = await db()
+      .collection("tournoi")
+      .find({ _id: { $in: user.tournois_id || [] } })
+      .toArray();
+
+    res.status(200).json(tournois);
+  } catch (err) {
+    console.error("Erreur dans getUserTournaments :", err);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
@@ -263,4 +309,5 @@ module.exports = {
   verifierInscription,
   verifierConflitTournoi,
   loginUser,
+  getUserTournaments,
 };
