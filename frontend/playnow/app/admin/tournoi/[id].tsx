@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { inscrireTournoiOfflineSafe } from "@/app/services/apiUser";
+import { showAlert } from "@/app/utils/offlineQueue";
 import {
   View,
   Text,
@@ -18,18 +19,38 @@ export default function TournamentDetails() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const showAlert = (title: string, message: string) => {
-    if (typeof window !== "undefined" && window.alert) {
-      window.alert(`${title}\n\n${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
-  };
+
 
   useEffect(() => {
     const fetchTournament = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/v1/tournoi/${id}`);
+        const token = await AsyncStorage.getItem("token");
+        if (!token) {
+          showAlert("Erreur", "Veuillez vous connecter.");
+          router.replace("/login");
+          return;
+        }
+
+        const payload = decodeTokenPayload(token);
+        if (!payload || !payload.userId) {
+          showAlert("Erreur", "Token invalide. Veuillez vous reconnecter.");
+          router.replace("/login");
+          return;
+        }
+
+        // Vérification du rôle admin
+        if (payload.role !== "admin") {
+          showAlert(
+            "Accès refusé",
+            "Vous n'êtes pas autorisé à accéder à cette page."
+          );
+          router.replace("/user/home");
+          return;
+        }
+
+        const res = await fetch(`http://localhost:3000/api/v1/tournoi/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error("Impossible de récupérer le tournoi");
         const data = await res.json();
         setTournament(data);
@@ -78,10 +99,11 @@ export default function TournamentDetails() {
       const result = await inscrireTournoiOfflineSafe(
         userId,
         id as string,
-        token
+        token,
+        tournament
       );
 
-      if (result.offline) {
+      if (result.offlineQueued) {
         showAlert(
           "Mode hors-ligne",
           "Vous êtes hors ligne. L'inscription sera synchronisée automatiquement lorsque vous aurez Internet."

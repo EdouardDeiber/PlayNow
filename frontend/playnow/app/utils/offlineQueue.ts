@@ -7,12 +7,24 @@ export interface QueuedRequest {
   url: string;
   headers?: any;
   body?: any;
+  meta?: any;
+}
+
+export function getPendingTournaments(): Promise<any[]> {
+  return getQueue().then((queue) => {
+    return queue
+      .filter((req) => req.meta && req.meta.tournamentDetails)
+      .map((req) => ({
+        ...req.meta.tournamentDetails,
+        _pending: true, // Marqueur pour l'UI
+      }));
+  });
 }
 
 const STORAGE_KEY = "offlineQueue";
 
 // Utilitaire d’alerte compatible Web & Mobile
-function showAlert(title: string, message: string) {
+export function showAlert(title: string, message: string) {
   if (typeof window !== "undefined" && window.alert) {
     window.alert(`${title}\n\n${message}`);
   } else {

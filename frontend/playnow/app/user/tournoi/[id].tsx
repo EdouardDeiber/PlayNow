@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { inscrireTournoiOfflineSafe } from "../../services/apiUser";
+import { showAlert } from "../../utils/offlineQueue";
 import {
   View,
   Text,
@@ -22,17 +23,7 @@ export default function TournamentDetails() {
   const [submitting, setSubmitting] = useState(false);
 
   //  Alerte compatible Web et Mobile
-  const showAlert = (title: string, message: string) => {
-    if (
-      Platform.OS === "web" &&
-      typeof window !== "undefined" &&
-      window.alert
-    ) {
-      window.alert(`${title}\n\n${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
-  };
+
 
   //  Charge les infos du tournoi
   const fetchTournament = async () => {
@@ -118,7 +109,8 @@ export default function TournamentDetails() {
       const result = await inscrireTournoiOfflineSafe(
         userId,
         id as string,
-        token
+        token,
+        tournament
       );
 
       if (result.offlineQueued) {

@@ -25,7 +25,7 @@ app.get("/health", (req, res) => {
 // --- Lancement serveur ---
 connecter()
   .then(() => {
-    const port = process.env.EXPRESS_PORT || 3000;
+    const port = process.env.EXPRESS_PORT ;
 
     // Écoute sur toutes les interfaces → nécessaire pour Docker + Expo Go
     app.listen(port, "0.0.0.0", () => {

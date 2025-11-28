@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { showAlert } from "../utils/offlineQueue";
 
 interface Tournament {
   _id: string;
@@ -22,7 +23,6 @@ interface Tournament {
   users_id: string[];
 }
 
-// Formater la date en français
 function formatDateFr(dateString: string) {
   const d = new Date(dateString);
   return d.toLocaleDateString("fr-FR", {
@@ -32,7 +32,6 @@ function formatDateFr(dateString: string) {
   });
 }
 
-// Décoder payload JWT simple
 function decodeToken(token: string) {
   try {
     const payload = token.split(".")[1];
@@ -54,15 +53,25 @@ export default function UserHomeScreen() {
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) {
-          Alert.alert("Erreur", "Veuillez vous connecter.");
+          showAlert("Erreur", "Veuillez vous connecter.");
           router.replace("/login");
           return;
         }
 
         const payload = decodeToken(token);
         if (!payload || !payload.userId) {
-          Alert.alert("Erreur", "Token invalide. Veuillez vous reconnecter.");
+          showAlert("Erreur", "Token invalide. Veuillez vous reconnecter.");
           router.replace("/login");
+          return;
+        }
+
+        // Vérification du rôle admin
+        if (payload.role !== "admin") {
+          showAlert(
+            "Accès refusé",
+            "Vous n'êtes pas autorisé à accéder à cette page."
+          );
+          router.replace("/user/home");
           return;
         }
 
@@ -80,7 +89,7 @@ export default function UserHomeScreen() {
         setTournaments(data);
       } catch (err) {
         console.error("Erreur API :", err);
-        Alert.alert("Erreur", "Impossible de récupérer les tournois.");
+        showAlert("Erreur", "Impossible de récupérer les tournois.");
       } finally {
         setLoading(false);
       }
@@ -138,17 +147,15 @@ export default function UserHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#2cae4b", // même vert que login
+    backgroundColor: "#2cae4b",
     padding: 20,
   },
-
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#2cae4b",
   },
-
   title: {
     fontSize: 28,
     fontWeight: "bold",
@@ -156,9 +163,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: "#ffffff",
   },
-
   card: {
-    backgroundColor: "#d1f0c5", // vert clair comme les inputs du login
+    backgroundColor: "#d1f0c5",
     padding: 18,
     borderRadius: 16,
     marginBottom: 18,
@@ -168,28 +174,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
-
   cardTitle: {
     fontSize: 22,
     fontWeight: "bold",
     color: "#1b3d2f",
     marginBottom: 6,
   },
-
   cardSub: {
     fontSize: 16,
     color: "#2b573d",
     marginBottom: 2,
   },
-
   button: {
-    backgroundColor: "#000", // bouton noir comme sur login
+    backgroundColor: "#000",
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
     marginTop: 16,
   },
-
   buttonText: {
     color: "#ffffff",
     fontWeight: "bold",

@@ -4,7 +4,8 @@ import { queueRequest } from "../utils/offlineQueue";
 export async function inscrireTournoiOfflineSafe(
   userId: string,
   tournoiId: string,
-  token: string
+  token: string,
+  tournamentDetails?: any
 ) {
   const state = await NetInfo.fetch();
 
@@ -18,6 +19,7 @@ export async function inscrireTournoiOfflineSafe(
       "Content-Type": "application/json",
     },
     body: null,
+    meta: { tournamentDetails },
   };
 
   if (!state.isConnected) {
