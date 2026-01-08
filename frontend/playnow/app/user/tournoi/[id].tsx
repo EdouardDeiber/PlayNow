@@ -85,6 +85,21 @@ export default function TournamentDetails() {
     }
   };
 
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getUserId = async () => {
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        const payload = decodeTokenPayload(token);
+        if (payload && payload.userId) {
+          setUserId(payload.userId);
+        }
+      }
+    };
+    getUserId();
+  }, []);
+
   //  Bouton S'inscrire
   const handleInscription = async () => {
     setSubmitting(true);
@@ -153,6 +168,11 @@ export default function TournamentDetails() {
     );
   }
 
+  const isRegistered =
+    userId &&
+    tournament.users_id &&
+    tournament.users_id.includes(userId);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{tournament.sport}</Text>
@@ -168,15 +188,17 @@ export default function TournamentDetails() {
         {tournament.nbrParticipant}
       </Text>
 
-      <TouchableOpacity
-        style={[styles.button, submitting && { opacity: 0.6 }]}
-        onPress={handleInscription}
-        disabled={submitting}
-      >
-        <Text style={styles.buttonText}>
-          {submitting ? "Inscription..." : "S'inscrire"}
-        </Text>
-      </TouchableOpacity>
+      {!isRegistered && (
+        <TouchableOpacity
+          style={[styles.button, submitting && { opacity: 0.6 }]}
+          onPress={handleInscription}
+          disabled={submitting}
+        >
+          <Text style={styles.buttonText}>
+            {submitting ? "Inscription..." : "S'inscrire"}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

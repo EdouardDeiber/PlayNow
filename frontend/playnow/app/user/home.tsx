@@ -72,6 +72,22 @@ export default function UserHomeScreen() {
           ? `http://localhost:3000/api/v1/user/${payload.userId}/tournois`
           : "http://localhost:3000/api/v1/tournoi";
 
+        // Pour "Mes tournois", on charge d'abord le cache pour un affichage immédiat (optimistic UI)
+        if (showMyTournaments) {
+          try {
+            const cachedParams = await AsyncStorage.getItem(
+              `cached_my_tournaments_${payload.userId}`
+            );
+            if (cachedParams) {
+              const cachedData = JSON.parse(cachedParams);
+              const pending = await getPendingTournaments();
+              setTournaments([...pending, ...cachedData]);
+            }
+          } catch (e) {
+            // Ignorer erreur de lecture cache
+          }
+        }
+
         const res = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -80,18 +96,48 @@ export default function UserHomeScreen() {
 
         const data: Tournament[] = await res.json();
 
-        // Fusionner avec les tournois en attente (offline)
+        // Gestion Cache & Fusion
         if (showMyTournaments) {
+          // Sauvegarde en cache
+          await AsyncStorage.setItem(
+            `cached_my_tournaments_${payload.userId}`,
+            JSON.stringify(data)
+          );
+
           const pending = await getPendingTournaments();
-          // On ajoute les pending au début ou à la fin, selon préférence
-          // Ici on les met au début pour qu'ils soient visibles
           setTournaments([...pending, ...data]);
         } else {
           setTournaments(data);
         }
       } catch (err) {
         console.error("Erreur API :", err);
-        Alert.alert("Erreur", "Impossible de récupérer les tournois.");
+
+        // En cas d'erreur (ex: hors ligne), si on est sur "Mes tournois", on tente de charger le cache
+        // (si ce n'est pas déjà fait via le chargement optimiste, ou pour confirmer)
+        if (showMyTournaments) {
+          try {
+            const token = await AsyncStorage.getItem("token");
+            if (token) {
+              const payload = decodeToken(token);
+              if (payload && payload.userId) {
+                const cachedParams = await AsyncStorage.getItem(
+                  `cached_my_tournaments_${payload.userId}`
+                );
+                if (cachedParams) {
+                  const cachedData = JSON.parse(cachedParams);
+                  const pending = await getPendingTournaments();
+                  setTournaments([...pending, ...cachedData]);
+                  return; // On a affiché les données cacbées, on s'arrête là pour ne pas afficher l'alerte
+                }
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        
+         // Affiche l'alerte seulement si on n'a pas pu charger de cache
+         Alert.alert("Erreur", "Impossible de récupérer les tournois (accès hors-ligne disponible pour vos tournois).");
       } finally {
         setLoading(false);
       }

@@ -73,19 +73,39 @@ export async function processOfflineQueue() {
         body: req.body ? JSON.stringify(req.body) : undefined,
       });
 
-      if (!res.ok) {
-        remaining.push(req);
-      } else {
+      if (res.ok) {
         successCount++; // ✓ Synchronisation réussie
+      } else {
+        // En cas d'erreur client (4xx), on ne réessaie pas indéfiniment
+        if (res.status >= 400 && res.status < 500) {
+          const errorData = await res.json().catch(() => ({}));
+          const errorMessage =
+            errorData.msg ||
+            errorData.message ||
+            errorData.error ||
+            "Erreur inconnue";
+
+          showAlert(
+            "Échec de la synchronisation",
+            `L'inscription au tournoi "${
+              req.meta?.tournamentDetails?.sport || "Inconnu"
+            }" a échoué : ${errorMessage}`
+          );
+          // On ne l'ajoute plus à "remaining", donc elle est retirée de la file
+        } else {
+          // Si c'est une erreur 500 ou autre, on réessaie plus tard
+          remaining.push(req);
+        }
       }
     } catch (err) {
+      // Erreur réseau probable, on réessaie plus tard
       remaining.push(req);
     }
   }
 
   await saveQueue(remaining);
 
-  //  Si une ou plusieurs requêtes ont été synchronisées
+  //  Si une ou plusieurs requêtes ont été synchronisées (succès)
   if (successCount > 0) {
     showAlert(
       "Synchronisation réussie",

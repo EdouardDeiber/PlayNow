@@ -21,6 +21,8 @@ export default function TournamentDetails() {
 
 
 
+  const [userId, setUserId] = useState<string | null>(null);
+
   useEffect(() => {
     const fetchTournament = async () => {
       try {
@@ -37,6 +39,8 @@ export default function TournamentDetails() {
           router.replace("/login");
           return;
         }
+
+        setUserId(payload.userId);
 
         // Vérification du rôle admin
         if (payload.role !== "admin") {
@@ -95,7 +99,7 @@ export default function TournamentDetails() {
 
       const userId = payload.userId;
 
-      // 👉 utilisation de la fonction OFFLINE SAFE
+      // fonction OFFLINE SAFE
       const result = await inscrireTournoiOfflineSafe(
         userId,
         id as string,
@@ -108,6 +112,8 @@ export default function TournamentDetails() {
           "Mode hors-ligne",
           "Vous êtes hors ligne. L'inscription sera synchronisée automatiquement lorsque vous aurez Internet."
         );
+      } else if (!result.ok) {
+        showAlert("Erreur", result.message || "Impossible de vous inscrire.");
       } else {
         showAlert("Succès", "Inscription réussie !");
       }
@@ -141,6 +147,11 @@ export default function TournamentDetails() {
     );
   }
 
+  const isRegistered =
+    userId &&
+    tournament.users_id &&
+    tournament.users_id.includes(userId);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{tournament.sport}</Text>
@@ -156,15 +167,17 @@ export default function TournamentDetails() {
         {tournament.nbrParticipant}
       </Text>
 
-      <TouchableOpacity
-        style={[styles.button, submitting && { opacity: 0.6 }]}
-        onPress={handleInscription}
-        disabled={submitting}
-      >
-        <Text style={styles.buttonText}>
-          {submitting ? "Inscription..." : "S'inscrire"}
-        </Text>
-      </TouchableOpacity>
+      {!isRegistered && (
+        <TouchableOpacity
+          style={[styles.button, submitting && { opacity: 0.6 }]}
+          onPress={handleInscription}
+          disabled={submitting}
+        >
+          <Text style={styles.buttonText}>
+            {submitting ? "Inscription..." : "S'inscrire"}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

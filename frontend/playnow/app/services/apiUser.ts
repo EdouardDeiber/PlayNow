@@ -31,7 +31,7 @@ export async function inscrireTournoiOfflineSafe(
     const res = await fetch(url, request);
     const data = await res.json();
 
-    if (!res.ok) return { ok: false, message: data.message };
+    if (!res.ok) return { ok: false, message: data.msg || data.message };
 
     return { ok: true, data };
   } catch (err) {
