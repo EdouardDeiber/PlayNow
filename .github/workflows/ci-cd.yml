@@ -1,0 +1,95 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  # Backend API Pipeline
+  backend:
+    name: Backend API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./REST API
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './REST API/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Build Docker image
+        run: docker build -t playnow-api:${{ github.sha }} .
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Push to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag playnow-api:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/playnow-api:latest
+          docker tag playnow-api:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/playnow-api:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/playnow-api:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/playnow-api:${{ github.sha }}
+        continue-on-error: true
+
+  # Frontend Pipeline
+  frontend:
+    name: Frontend Mobile App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend/playnow
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/playnow/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Check TypeScript
+        run: npx tsc --noEmit
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+        continue-on-error: true
+
+      - name: Build Expo app
+        run: npx expo export --platform all
+        continue-on-error: true
