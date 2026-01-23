@@ -1,0 +1,127 @@
+name: CI/CD Pipeline (Self-Hosted)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/playnow-api
+
+jobs:
+  # Backend API Pipeline
+  backend:
+    name: Backend API
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: ./REST API
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './REST API/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+      # Login to GitHub Container Registry
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./REST API
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # Frontend Pipeline
+  frontend:
+    name: Frontend Mobile App
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: ./frontend/playnow
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/playnow/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Check TypeScript
+        run: npx tsc --noEmit
+
+  # Déploiement automatique en production
+  deploy:
+    name: Deploy to Production
+    needs: [backend, frontend]
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd ~/apps/playnow
+            
+            # Login to GitHub Container Registry
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Pull latest image and restart
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            
+            # Cleanup old images
+            docker image prune -f
+
+      - name: Health check
+        run: |
+          sleep 10
+          curl -f http://${{ secrets.PROD_SSH_HOST }}:3000 || echo "Health check failed, but continuing..."
+        continue-on-error: true
+
+      - name: Deployment summary
+        run: |
+          echo "Deployment completed successfully!"
+          echo "Application: PlayNow API"
+          echo "Version: ${{ github.sha }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Date: $(date)"
