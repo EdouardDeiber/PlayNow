@@ -6,7 +6,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=${EXPRESS_PORT}
-      - MONGO_URL=mongodb://127.0.0.1:27018/${MONGODB_DB_NAME}
+      - MONGO_URL=mongodb://127.0.0.1:27020/${MONGODB_DB_NAME}
     env_file:
       - .env.prod
     depends_on:
@@ -18,11 +18,11 @@ services:
     image: mongo:8
     container_name: mongo-playnow-prod
     network_mode: "host"
-    entrypoint: ["mongod", "--port", "27018", "--bind_ip", "0.0.0.0", "--dbpath", "/data/db"]
+    entrypoint: ["mongod", "--port", "27020", "--bind_ip", "0.0.0.0", "--dbpath", "/data/db"]
     volumes:
       - mongo_playnow_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "mongosh --port 27018 --eval 'db.adminCommand(\"ping\")' || exit 1"]
+      test: ["CMD-SHELL", "mongosh --port 27020 --eval 'db.adminCommand(\"ping\")' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
