@@ -6,7 +6,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=${EXPRESS_PORT}
-      - MONGO_URL=mongodb://${MONGODB_USERNAME}:${MONGODB_PASSWORD}@127.0.0.1:27018/${MONGODB_DB_NAME}?authSource=admin
+      - MONGO_URL=mongodb://127.0.0.1:27018/${MONGODB_DB_NAME}
     env_file:
       - .env.prod
     depends_on:
@@ -18,11 +18,7 @@ services:
     image: mongo:8
     container_name: mongo-playnow-prod
     network_mode: "host"
-    command: ["mongod", "--port", "27018", "--bind_ip_all"]
-    environment:
-      - MONGO_INITDB_DATABASE=${MONGODB_DB_NAME}
-      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+    entrypoint: ["mongod", "--port", "27018", "--bind_ip", "0.0.0.0", "--dbpath", "/data/db"]
     volumes:
       - mongo_playnow_data:/data/db
     healthcheck:
