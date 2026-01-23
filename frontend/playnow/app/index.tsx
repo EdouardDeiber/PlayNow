@@ -14,7 +14,7 @@ const App = () => {
   //const [login, setLogin] = useState("");
   //const [password, setPassword] = useState("");
 
-  const handleLogin = {
+  const handleLogin = () => {
     //Alert.alert("Connexion", `Login: ${login}\nMot de passe: ${password}`);
   };
 
