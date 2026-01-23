@@ -16,16 +16,17 @@ services:
 
   mongo:
     image: mongo:8
-    container_name: mongo-prod
+    container_name: mongo-playnow-prod
     network_mode: "host"
+    command: ["mongod", "--port", "${MONGODB_PORT}", "--bind_ip_all"]
     environment:
       - MONGO_INITDB_DATABASE=${MONGODB_DB_NAME}
       - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
     volumes:
-      - mongo_data_prod:/data/db
+      - mongo_playnow_data:/data/db
     healthcheck:
-      test: [ "CMD-SHELL", "mongosh --eval 'db.adminCommand(\"ping\")' || exit 1" ]
+      test: ["CMD-SHELL", "mongosh --port ${MONGODB_PORT} --eval 'db.adminCommand(\"ping\")' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,5 +34,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  mongo_data_prod:
-
+  mongo_playnow_data:
