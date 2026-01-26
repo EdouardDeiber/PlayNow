@@ -1,5 +1,5 @@
 # docker-compose.prod.yml
-
+# Configuration pour le déploiement en production
 services:
   api:
     image: ghcr.io/edouarddeiber/playnow-api:latest
