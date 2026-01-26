@@ -6,6 +6,7 @@ const app = express();
 
 // --- Middlewares ---
 app.use(cors()); // Autorise Expo Go à accéder à l’API
+app.options(/.*/, cors({ optionsSuccessStatus: 200 })); // Active les pré-requêtes pour toutes les routes avec réponse 200 OK
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
