@@ -31,15 +31,17 @@ jobs:
 
       - name: Build backend Docker image
         run: |
+          USERNAME_LOWER=$(echo "${{ secrets.GHCR_USERNAME }}" | tr '[:upper:]' '[:lower:]')
           docker build -f "REST API/Dockerfile.prod" \
-            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest \
-            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }} \
+            -t $REGISTRY/$USERNAME_LOWER/$IMAGE_NAME:latest \
+            -t $REGISTRY/$USERNAME_LOWER/$IMAGE_NAME:${{ github.sha }} \
             "REST API"
 
       - name: Push backend image to GHCR
         run: |
-          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest
-          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+          USERNAME_LOWER=$(echo "${{ secrets.GHCR_USERNAME }}" | tr '[:upper:]' '[:lower:]')
+          docker push $REGISTRY/$USERNAME_LOWER/$IMAGE_NAME:latest
+          docker push $REGISTRY/$USERNAME_LOWER/$IMAGE_NAME:${{ github.sha }}
 
       - name: Clean old Docker images
         run: docker image prune -f
@@ -87,7 +89,8 @@ jobs:
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             echo "==> Téléchargement de la dernière image backend"
-            docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/playnow-api:latest
+            USERNAME_LOWER=$(echo "${{ secrets.GHCR_USERNAME }}" | tr '[:upper:]' '[:lower:]')
+            docker pull ghcr.io/$USERNAME_LOWER/playnow-api:latest
 
             echo "==> Mise à jour des conteneurs (backend + MongoDB)"
             cd ~/apps/playnow
