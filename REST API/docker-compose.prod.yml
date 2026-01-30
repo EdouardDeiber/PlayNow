@@ -4,11 +4,7 @@ services:
   api:
     image: ghcr.io/edouarddeiber/playnow-api:latest
     container_name: playnow-api
-    #network_mode: host
-    ports:
-      - "3000:3000"
-    environment:
-      - MONGO_URL=mongodb://mongo:27017/playnow
+    network_mode: host
     env_file:
       - .env
     depends_on:
@@ -18,12 +14,8 @@ services:
   mongo:
     image: mongo:8
     container_name: playnow-mongo
-    #network_mode: host
-    ports:
-      - "27020:27017"
-    environment:
-      - MONGO_INITDB_DATABASE=playnow
-    #command: ["mongod", "--port", "27020"]
+    network_mode: host
+    command: ["mongod", "--port", "27020"]
     restart: unless-stopped
 
 volumes:
