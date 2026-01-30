@@ -5,8 +5,14 @@ const { connecter, db, isConnected } = require("./bd/connect");
 const app = express();
 
 // --- Middlewares ---
-app.use(cors()); // Autorise Expo Go à accéder à l’API
-app.options(/.*/, cors({ optionsSuccessStatus: 200 })); // Active les pré-requêtes pour toutes les routes avec réponse 200 OK
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+})); // Autorise Expo Go à accéder à l’API
+ // Active les pré-requêtes pour toutes les routes avec réponse 200 OK
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

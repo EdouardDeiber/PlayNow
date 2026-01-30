@@ -7,6 +7,7 @@ class Tournoi {
     this.materiel = materiel;
     this.nbrParticipant = nbrParticipant;
     this.users_id = users_id;
+    this.createdAt = new Date(); // Timestamp pour synchronisation incrémentale
   }
 }
 

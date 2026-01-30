@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { showAlert, getPendingTournaments } from "../utils/offlineQueue";
+import { fetchTournamentsIncremental } from "../services/apiTournoi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Tournament {
@@ -68,12 +69,9 @@ export default function UserHomeScreen() {
           return;
         }
 
-        const endpoint = showMyTournaments
-          ? `http://localhost:3000/api/v1/user/${payload.userId}/tournois`
-          : "http://localhost:3000/api/v1/tournoi";
-
-        // Pour "Mes tournois", on charge d'abord le cache pour un affichage immédiat (optimistic UI)
+        // Pour "Mes tournois", on garde la logique actuelle avec cache optimiste
         if (showMyTournaments) {
+          // Charge d'abord le cache pour un affichage immédiat (optimistic UI)
           try {
             const cachedParams = await AsyncStorage.getItem(
               `cached_my_tournaments_${payload.userId}`
@@ -86,18 +84,16 @@ export default function UserHomeScreen() {
           } catch (e) {
             // Ignorer erreur de lecture cache
           }
-        }
 
-        const res = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+          const endpoint = `http://localhost:3000/api/v1/user/${payload.userId}/tournois`;
+          const res = await fetch(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-        if (!res.ok) throw new Error("Impossible de récupérer les tournois");
+          if (!res.ok) throw new Error("Impossible de récupérer les tournois");
 
-        const data: Tournament[] = await res.json();
+          const data: Tournament[] = await res.json();
 
-        // Gestion Cache & Fusion
-        if (showMyTournaments) {
           // Sauvegarde en cache
           await AsyncStorage.setItem(
             `cached_my_tournaments_${payload.userId}`,
@@ -107,6 +103,8 @@ export default function UserHomeScreen() {
           const pending = await getPendingTournaments();
           setTournaments([...pending, ...data]);
         } else {
+          // Pour "Tous les tournois", utiliser la synchronisation incrémentale
+          const data = await fetchTournamentsIncremental(token);
           setTournaments(data);
         }
       } catch (err) {

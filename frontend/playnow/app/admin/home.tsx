@@ -11,6 +11,7 @@ import {
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { showAlert } from "../utils/offlineQueue";
+import { fetchTournamentsIncremental } from "../services/apiTournoi";
 
 interface Tournament {
   _id: string;
@@ -75,18 +76,22 @@ export default function UserHomeScreen() {
           return;
         }
 
-        const endpoint = showMyTournaments
-          ? `http://localhost:3000/api/v1/user/${payload.userId}/tournois`
-          : "http://localhost:3000/api/v1/tournoi";
+        // Pour "Mes tournois", utiliser l'endpoint utilisateur
+        // Pour "Tous les tournois", utiliser la synchronisation incrémentale
+        if (showMyTournaments) {
+          const endpoint = `http://localhost:3000/api/v1/user/${payload.userId}/tournois`;
+          const res = await fetch(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-        const res = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+          if (!res.ok) throw new Error("Impossible de récupérer les tournois");
 
-        if (!res.ok) throw new Error("Impossible de récupérer les tournois");
-
-        const data: Tournament[] = await res.json();
-        setTournaments(data);
+          const data: Tournament[] = await res.json();
+          setTournaments(data);
+        } else {
+          const data = await fetchTournamentsIncremental(token);
+          setTournaments(data);
+        }
       } catch (err) {
         console.error("Erreur API :", err);
         showAlert("Erreur", "Impossible de récupérer les tournois.");

@@ -39,7 +39,14 @@ const ajouterTournoi = async (req, res) => {
 
 const getTournois = async (req, res) => {
   try {
-    let cursor = db().collection("tournoi").find();
+    const { since } = req.query;
+    
+    let query = {};
+    if (since) {
+      query.createdAt = { $gt: new Date(since) };
+    }
+    
+    let cursor = db().collection("tournoi").find(query).sort({ createdAt: 1 });
     let result = await cursor.toArray();
     res.status(200).json(result);
   } catch (error) {
