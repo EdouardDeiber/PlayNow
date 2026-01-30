@@ -18,8 +18,12 @@ services:
   mongo:
     image: mongo:8
     container_name: playnow-mongo
-    network_mode: host
-    command: ["mongod", "--port", "27020"]
+    #network_mode: host
+    ports:
+      - "27020:27020"
+    environment:
+      - MONGO_INITDB_DATABASE=playnow
+    #command: ["mongod", "--port", "27020"]
     restart: unless-stopped
 
 volumes:
