@@ -8,7 +8,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - MONGO_URL=mongodb://mongo:27020/playnow
+      - MONGO_URL=mongodb://mongo:27017/playnow
     env_file:
       - .env
     depends_on:
@@ -20,10 +20,10 @@ services:
     container_name: playnow-mongo
     #network_mode: host
     ports:
-      - "27020:27020"
+      - "27020:27017"
     environment:
       - MONGO_INITDB_DATABASE=playnow
-    command: ["mongod", "--port", "27020"]
+    #command: ["mongod", "--port", "27020"]
     restart: unless-stopped
 
 volumes:
