@@ -1,127 +1,113 @@
-name: CI/CD Pipeline (Self-Hosted)
+name: CI/CD - Build, Publish & Deploy (Backend only)
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: edouarddeiber/playnow-api
+  IMAGE_NAME: playnow-api
 
 jobs:
-  # Backend API Pipeline
-  backend:
-    name: Backend API
+  # --------- JOB 1 : CI/CD - Build et publication Docker ----------
+  build_and_publish:
     runs-on: self-hosted
-    defaults:
-      run:
-        working-directory: ./REST API
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './REST API/package-lock.json'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
-        continue-on-error: true
-
-      # Connexion au dépot git
-      - name: Log in to Container Registry
+      # ---- BACKEND NODE (IMAGE DOCKER) ----
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_PAT }}
 
-      # Build et push l'image Docker
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./REST API
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+      - name: Build backend Docker image
+        run: |
+          docker build -f "REST API/Dockerfile.prod" \
+            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest \
+            -t $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }} \
+            "REST API"
 
-  # Frontend Pipeline
-  frontend:
-    name: Frontend Mobile App
+      - name: Push backend image to GHCR
+        run: |
+          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:latest
+          docker push $REGISTRY/${{ secrets.GHCR_USERNAME }}/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Clean old Docker images
+        run: docker image prune -f
+
+  # --------- JOB 2 : Déploiement sur serveur de PROD ----------
+  deploy:
     runs-on: self-hosted
-    defaults:
-      run:
-        working-directory: ./frontend/playnow
-
+    needs: build_and_publish
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './frontend/playnow/package-lock.json'
+      - name: Générer et copier les fichiers de config (.env et docker-compose)
+        run: |
+          # 1. Créer le fichier .env à partir des secrets GitHub
+          echo "NODE_ENV=${{ secrets.ENV_NODE_ENV }}" >> .env
+          echo "EXPRESS_PORT=${{ secrets.ENV_EXPRESS_PORT }}" >> .env
+          echo "MONGO_URL=${{ secrets.ENV_MONGO_URL }}" >> .env
+          echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" >> .env
 
-      - name: Install dependencies
-        run: npm ci
+          # 2. Créer la clé privée temporaire pour SCP
+          echo "${{ secrets.SSH_PRIVATE_KEY_PROD }}" > private_key
+          chmod 600 private_key
 
-      - name: Run ESLint
-        run: npm run lint
-        continue-on-error: true
+          # 3. Créer le dossier de destination s'il n'existe pas
+          ssh -o StrictHostKeyChecking=no -i private_key ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} "mkdir -p ~/apps/playnow"
 
-      - name: Check TypeScript
-        run: npx tsc --noEmit
+          # 4. Copier les fichiers vers le serveur de prod
+          scp -o StrictHostKeyChecking=no -i private_key "REST API/docker-compose.prod.yml" .env ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:~/apps/playnow/
 
-  # Déploiement automatique en production
-  deploy:
-    name: Deploy to Production
-    needs: [backend, frontend]
-    runs-on: self-hosted
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+          # 5. Nettoyage
+          rm private_key .env
+
+      - name: Vérifier la connexion SSH
+        run: ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} "echo '✅ SSH OK'"
+
+      - name: Déployer le backend sur le serveur de production
+        uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.SSH_HOST_PROD }}
           username: ${{ secrets.SSH_USER_PROD }}
           key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
           script: |
+            echo "==> Connexion à GitHub Container Registry"
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            echo "==> Téléchargement de la dernière image backend"
+            docker pull ghcr.io/${{ secrets.GHCR_USERNAME }}/playnow-api:latest
+
+            echo "==> Mise à jour des conteneurs (backend + MongoDB)"
             cd ~/apps/playnow
-            
-            # Login to GitHub Container Registry
-            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
-            
-            # Pull latest image and restart
-            docker compose -f docker-compose.prod.yml pull
+
+            # Arrêt des conteneurs avec sudo pour éviter les erreurs de permissions
+            printf '%s\n' "${{ secrets.SSH_PASSWORD }}" | sudo -S docker compose -f docker-compose.prod.yml down || {
+              echo "⚠️  docker compose down a échoué, tentative de kill forcé..."
+              # Si ça échoue, on force le kill des conteneurs
+              CONTAINER_IDS=$(docker ps -q --filter "name=playnow")
+              if [ ! -z "$CONTAINER_IDS" ]; then
+                for CID in $CONTAINER_IDS; do
+                  PID=$(docker inspect $CID --format '{{.State.Pid}}')
+                  echo "Killing container $CID (PID: $PID)"
+                  printf '%s\n' "${{ secrets.SSH_PASSWORD }}" | sudo -S kill -9 $PID 2>/dev/null || true
+                done
+                printf '%s\n' "${{ secrets.SSH_PASSWORD }}" | sudo -S docker rm -f $CONTAINER_IDS 2>/dev/null || true
+              fi
+            }
+
+            # Relance avec la nouvelle image
             docker compose -f docker-compose.prod.yml up -d
-            
-            # Cleanup old images
-            docker image prune -f
 
-      - name: Health check
-        run: |
-          sleep 10
-          curl -f http://${{ secrets.SSH_HOST_PROD }}:3000 || echo "Health check failed, but continuing..."
-        continue-on-error: true
-
-      - name: Deployment summary
-        run: |
-          echo "Deployment completed successfully!"
-          echo "Application: PlayNow API"
-          echo "Version: ${{ github.sha }}"
-          echo "Deployed by: ${{ github.actor }}"
-          echo "Date: $(date)"
+            echo "✅ Déploiement backend terminé avec succès."

@@ -1,35 +1,22 @@
-# docker-compose.prod.yml
-# Configuration pour le déploiement en production
+version: "3.9"
+
 services:
   api:
     image: ghcr.io/edouarddeiber/playnow-api:latest
-    container_name: playnow-api-prod
-    network_mode: "host"
-    environment:
-      - NODE_ENV=production
-      - PORT=${EXPRESS_PORT}
-      - MONGO_URL=mongodb://127.0.0.1:27020/${MONGODB_DB_NAME}
+    container_name: playnow-api
+    network_mode: host
     env_file:
-      - .env.prod
+      - .env
     depends_on:
-      mongo:
-        condition: service_healthy
+      - mongo
     restart: unless-stopped
 
   mongo:
     image: mongo:8
-    container_name: mongo-playnow-prod
-    network_mode: "host"
-    entrypoint: ["mongod", "--port", "27020", "--bind_ip", "0.0.0.0", "--dbpath", "/data/db"]
-    volumes:
-      - mongo_playnow_data:/data/db
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --port 27020 --eval 'db.adminCommand(\"ping\")' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+    container_name: playnow-mongo
+    network_mode: host
+    command: ["mongod", "--port", "27020"]
     restart: unless-stopped
 
 volumes:
-  mongo_playnow_data:
+  mongo_data:

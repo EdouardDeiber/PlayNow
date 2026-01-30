@@ -1,0 +1,37 @@
+# Multi-stage build optimisé pour la production
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copie des fichiers de dépendances
+COPY package*.json ./
+
+# Installation des dépendances de production uniquement
+RUN npm ci --only=production && npm cache clean --force
+
+# Stage final - Image légère
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Création d'un utilisateur non-root pour la sécurité
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Copie des node_modules depuis le builder
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+
+# Copie du code source
+COPY --chown=nodejs:nodejs . .
+
+# Change vers l'utilisateur non-root
+USER nodejs
+
+# Exposition du port
+EXPOSE 3000
+
+# Variable d'environnement par défaut
+ENV NODE_ENV=production
+
+# Démarrage de l'application
+CMD ["node", "app.js"]
