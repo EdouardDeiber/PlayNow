@@ -1,5 +1,4 @@
 name: CI/CD - Build, Publish & Deploy (Backend only)
-#test
 on:
   push:
     branches:
