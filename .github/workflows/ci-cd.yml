@@ -61,6 +61,10 @@ jobs:
           echo "EXPRESS_PORT=${{ secrets.ENV_EXPRESS_PORT }}" >> .env
           echo "MONGO_URL=${{ secrets.ENV_MONGO_URL }}" >> .env
           echo "JWT_SECRET=${{ secrets.ENV_JWT_SECRET }}" >> .env
+          echo "MONGODB_USERNAME=${{ secrets.ENV_MONGODB_USERNAME }}" >> .env
+          echo "MONGODB_PASSWORD=${{ secrets.ENV_MONGODB_PASSWORD }}" >> .env
+          echo "MONGODB_PORT=${{ secrets.ENV_MONGODB_PORT }}" >> .env
+          echo "MONGODB_DB_NAME=${{ secrets.ENV_MONGODB_DB_NAME }}" >> .env
 
           # 2. Créer la clé privée temporaire pour SCP
           echo "${{ secrets.SSH_PRIVATE_KEY_PROD }}" > private_key
@@ -111,6 +115,6 @@ jobs:
             }
 
             # Relance avec la nouvelle image
-            docker compose -f docker-compose.prod.yml up -d
+            printf '%s\n' "${{ secrets.SSH_PASSWORD }}" | sudo -S docker compose -f docker-compose.prod.yml up -d
 
             echo "✅ Déploiement backend terminé avec succès."
